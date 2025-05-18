@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Thông tin cá nhân{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-card">
+        <div class="profile-header">
+            <h2>Thông tin cá nhân</h2>
+        </div>
+        
+        <div class="profile-info">
+            <div class="info-group">
+                <label>Email:</label>
+                <span>{{ user.email }}</span>
+            </div>
+            
+            <div class="info-group">
+                <label>Vai trò:</label>
+                <span>{{ "Admin" if user.role == 'admin' else "Người dùng" }}</span>
+            </div>
+
+            <div class="info-group">
+                <label>Số dư:</label>
+                <span class="balance">{{ "{:,.0f}".format(user.balance|default(0)) }}đ</span>
+            </div>
+
+            <div class="info-group">
+                <label>Ngày tạo:</label>
+                <span>{{ user.created_at.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+        </div>
+
+        <div class="profile-actions">
+            <button class="btn-deposit" onclick="showDepositForm()">Nạp tiền</button>
+            <button class="btn-password" onclick="showChangePasswordForm()">Đổi mật khẩu</button>
+            <a href="{{ url_for('transaction_history') }}" class="btn-history">Xem lịch sử giao dịch</a>
+        </div>
+
+        <!-- Form đổi mật khẩu -->
+        <div id="changePasswordForm" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Đổi mật khẩu</h3>
+                <input type="password" id="currentPassword" placeholder="Mật khẩu hiện tại" class="form-input">
+                <input type="password" id="newPassword" placeholder="Mật khẩu mới" class="form-input">
+                <input type="password" id="confirmPassword" placeholder="Xác nhận mật khẩu mới" class="form-input">
+                <div class="modal-actions">
+                    <button onclick="changePassword()" class="btn-confirm">Cập nhật</button>
+                    <button onclick="hideChangePasswordForm()" class="btn-cancel">Hủy</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form nạp tiền -->
+        <div id="depositForm" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>Nạp tiền vào tài khoản</h3>
+                <input type="number" id="amount" placeholder="Nhập số tiền" min="10000" step="10000" class="form-input">
+                <div class="modal-actions">
+                    <button onclick="deposit()" class="btn-confirm">Nạp tiền</button>
+                    <button onclick="hideDepositForm()" class="btn-cancel">Hủy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showChangePasswordForm() {
+    document.getElementById('changePasswordForm').style.display = 'flex';
+}
+
+function hideChangePasswordForm() {
+    document.getElementById('changePasswordForm').style.display = 'none';
+}
+
+function showDepositForm() {
+    document.getElementById('depositForm').style.display = 'flex';
+}
+
+function hideDepositForm() {
+    document.getElementById('depositForm').style.display = 'none';
+}
+
+function deposit() {
+    const amount = document.getElementById('amount').value;
+    if (!amount || amount < 10000) {
+        alert('Vui lòng nhập số tiền tối thiểu 10,000đ');
+        return;
+    }
+
+    fetch('/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: parseFloat(amount) })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        alert(data.message);
+        location.reload();
+    })
+    .catch(error => alert(error.message));
+}
+
+function changePassword() {
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    if (newPassword !== confirmPassword) {
+        alert('Mật khẩu mới không khớp!');
+        return;
+    }
+
+    fetch('/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            currentPassword,
+            newPassword
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        alert('Đổi mật khẩu thành công!');
+        hideChangePasswordForm();
+    })
+    .catch(error => alert(error.message));
+}
+</script>
+
+<style>
+.profile-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 1rem;
+}
+
+.profile-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 2rem;
+}
+
+.profile-header {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.profile-info {
+    margin-bottom: 2rem;
+}
+
+.info-group {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.info-group label {
+    font-weight: bold;
+    color: #666;
+}
+
+.balance {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.btn-deposit, .btn-password, .btn-history {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    text-decoration: none;
+}
+
+.btn-deposit {
+    background: #28a745;
+    color: white;
+}
+
+.btn-password {
+    background: #007bff;
+    color: white;
+}
+
+.btn-history {
+    background: #6c757d;
+    color: white;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.8rem;
+    margin: 0.5rem 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-confirm {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-cancel {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+</style>
+{% endblock %}

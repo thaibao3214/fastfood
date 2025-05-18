@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng ký tài khoản{% endblock %}
+
+{% block content %}
+<div class="register-container">
+    <h2>Đăng ký tài khoản</h2>
+    <div class="register-form">
+        <div class="form-group">
+            <input type="email" id="email" placeholder="Email" class="form-input" required>
+            <small class="error-text" id="email-error"></small>
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" placeholder="Mật khẩu" class="form-input" required>
+            <small class="error-text" id="password-error"></small>
+        </div>
+        <div class="form-group">
+            <input type="password" id="confirmPassword" placeholder="Xác nhận mật khẩu" class="form-input" required>
+            <small class="error-text" id="confirm-error"></small>
+        </div>
+        <button onclick="signup()" class="btn-register" id="registerBtn">
+            <span class="btn-text">Đăng ký</span>
+            <span class="spinner" style="display: none;"></span>
+        </button>
+        <p class="login-link">Đã có tài khoản? <a href="{{ url_for('login') }}">Đăng nhập</a></p>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBC_h5rZGZOA2ubjmvJiLIFKyH-WF2pr08",
+        authDomain: "fastfood-b1299.firebaseapp.com",
+        projectId: "fastfood-b1299",
+        storageBucket: "fastfood-b1299.appspot.com",
+        messagingSenderId: "889040701766",
+        appId: "1:889040701766:web:eb85f0b17a2cbefff54a7f",
+        measurementId: "G-E62DEYBL6P"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    async function signup() {
+        clearErrors();
+        const registerBtn = document.getElementById('registerBtn');
+        const btnText = registerBtn.querySelector('.btn-text');
+        const spinner = registerBtn.querySelector('.spinner');
+
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        const confirmPassword = document.getElementById("confirmPassword").value;
+
+        // Validation
+        if (!email) {
+            showError('email-error', 'Vui lòng nhập email');
+            return;
+        }
+        if (!isValidEmail(email)) {
+            showError('email-error', 'Email không hợp lệ');
+            return;
+        }
+        if (!password) {
+            showError('password-error', 'Vui lòng nhập mật khẩu');
+            return;
+        }
+        if (password.length < 6) {
+            showError('password-error', 'Mật khẩu phải có ít nhất 6 ký tự');
+            return;
+        }
+        if (password !== confirmPassword) {
+            showError('confirm-error', 'Mật khẩu không khớp');
+            return;
+        }
+
+        // Loading state
+        registerBtn.disabled = true;
+        btnText.style.display = 'none';
+        spinner.style.display = 'inline-block';
+
+        try {
+            // Kiểm tra email đã tồn tại
+            const methods = await auth.fetchSignInMethodsForEmail(email);
+            if (methods.length > 0) {
+                showError('email-error', 'Email này đã được sử dụng');
+                throw new Error('Email đã tồn tại');
+            }
+
+            // Tạo tài khoản Firebase
+            const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            const idToken = await userCredential.user.getIdToken();
+
+            // Gửi thông tin về server
+            const response = await fetch("/signup", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email, idToken })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Lỗi đăng ký');
+
+            showMessage("Đăng ký thành công! Đang chuyển hướng...", "success");
+            setTimeout(() => window.location.href = "/login", 1500);
+
+        } catch (error) {
+            console.error('Signup error:', error);
+            let errorMessage = 'Đã có lỗi xảy ra';
+            
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = 'Email này đã được sử dụng';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'Email không hợp lệ';
+            } else if (error.code === 'auth/operation-not-allowed') {
+                errorMessage = 'Tính năng đăng ký đang bị vô hiệu hóa';
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = 'Mật khẩu không đủ mạnh';
+            }
+            
+            showMessage(errorMessage, "error");
+        } finally {
+            // Reset button state
+            registerBtn.disabled = false;
+            btnText.style.display = 'inline';
+            spinner.style.display = 'none';
+        }
+    }
+
+    function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function showError(elementId, message) {
+        const element = document.getElementById(elementId);
+        element.textContent = message;
+        element.style.display = 'block';
+    }
+
+    function clearErrors() {
+        const errors = document.querySelectorAll('.error-text');
+        errors.forEach(error => error.textContent = '');
+    }
+
+    function showMessage(message, type) {
+        const existingAlert = document.querySelector('.alert');
+        if (existingAlert) existingAlert.remove();
+
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `alert alert-${type}`;
+        msgDiv.textContent = message;
+        document.querySelector('.register-form').prepend(msgDiv);
+        if (type === 'success') return; // Don't remove success message
+        setTimeout(() => msgDiv.remove(), 3000);
+    }
+</script>
+
+<style>
+    .register-container {
+        max-width: 400px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .register-container h2 {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: #333;
+    }
+
+    .register-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .form-input {
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: border-color 0.3s;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    }
+
+    .error-text {
+        color: #dc3545;
+        font-size: 0.875rem;
+        display: none;
+    }
+
+    .btn-register {
+        padding: 0.8rem;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: all 0.3s;
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 44px;
+    }
+
+    .btn-register:hover:not(:disabled) {
+        background-color: #218838;
+    }
+
+    .btn-register:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid #ffffff;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .alert {
+        padding: 0.8rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .alert-error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .login-link {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .login-link a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .login-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}

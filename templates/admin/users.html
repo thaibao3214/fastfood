@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý Users{% endblock %}
+
+{% block content %}
+<div class="users-container">
+    <h2>Quản lý Users</h2>
+    
+    <div class="filters">
+        <select id="statusFilter" onchange="filterUsers()">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="active">Đang hoạt động</option>
+            <option value="inactive">Đã khóa</option>
+        </select>
+        <select id="roleFilter" onchange="filterUsers()">
+            <option value="all">Tất cả quyền</option>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Tìm theo email..." oninput="filterUsers()">
+    </div>
+
+    <div class="users-list">
+        <table>
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Quyền</th>
+                    <th>Số dư</th>
+                    <th>Trạng thái</th>
+                    <th>Đơn hàng</th>
+                    <th>Ngày tạo</th>
+                    <th>Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="{{ 'inactive' if not user.is_active }}" data-role="{{ user.role }}">
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <select class="role-select" data-uid="{{ user.uid }}">
+                            <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                            <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                    </td>
+                    <td>
+                        <span class="balance">{{ "{:,.0f}".format(user.balance|default(0)) }}đ</span>
+                        <button onclick="showBalanceModal('{{ user.uid }}')" class="btn-adjust-balance">
+                            <i class="fas fa-coins"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <span class="status {{ 'active' if user.is_active else 'inactive' }}">
+                            {{ "Đang hoạt động" if user.is_active else "Đã khóa" }}
+                        </span>
+                    </td>
+                    <td>
+                        <button onclick="showOrderHistory('{{ user.uid }}')" class="btn-view-orders">
+                            Xem đơn hàng ({{ user.order_count|default(0) }})
+                        </button>
+                    </td>
+                    <td>{{ user.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td class="actions">
+                        <button onclick="updateRole('{{ user.uid }}')" class="btn-update" title="Cập nhật quyền">
+                            <i class="fas fa-user-shield"></i>
+                        </button>
+                        <button onclick="toggleUser('{{ user.uid }}')" class="btn-toggle" 
+                                title="{{ 'Khóa tài khoản' if user.is_active else 'Mở khóa tài khoản' }}">
+                            <i class="fas {{ 'fa-lock' if user.is_active else 'fa-lock-open' }}"></i>
+                        </button>
+                        <button onclick="deleteUser('{{ user.uid }}')" class="btn-delete" title="Xóa tài khoản">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal điều chỉnh số dư -->
+<div id="balanceModal" class="modal">
+    <div class="modal-content">
+        <h3>Điều chỉnh số dư</h3>
+        <div class="balance-form">
+            <div class="form-group">
+                <label>Số tiền:</label>
+                <input type="number" id="balanceAmount" min="0" step="1000">
+            </div>
+            <div class="form-group">
+                <label>Loại điều chỉnh:</label>
+                <select id="balanceType">
+                    <option value="add">Cộng thêm</option>
+                    <option value="subtract">Trừ đi</option>
+                    <option value="set">Đặt giá trị mới</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Ghi chú:</label>
+                <textarea id="balanceNote" rows="3"></textarea>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button onclick="adjustBalance()" class="btn-confirm">Xác nhận</button>
+            <button onclick="closeBalanceModal()" class="btn-cancel">Hủy</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal lịch sử đơn hàng -->
+<div id="orderHistoryModal" class="modal">
+    <div class="modal-content">
+        <h3>Lịch sử đơn hàng</h3>
+        <div id="orderHistoryContent"></div>
+        <button onclick="closeOrderHistoryModal()" class="btn-close">Đóng</button>
+    </div>
+</div>
+
+<style>
+.users-container {
+    padding: 2rem;
+}
+
+.filters {
+    margin-bottom: 2rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.filters select, .filters input {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 200px;
+}
+
+.users-list {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+tr.inactive {
+    background: #f8f9fa;
+    color: #666;
+}
+
+.status {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.status.active {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status.inactive {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-update, .btn-toggle, .btn-delete, .btn-adjust-balance, .btn-view-orders {
+    padding: 0.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-update { background: #007bff; }
+.btn-toggle { background: #ffc107; color: #000; }
+.btn-delete { background: #dc3545; }
+.btn-adjust-balance { 
+    background: #28a745;
+    margin-left: 0.5rem;
+    padding: 0.25rem 0.5rem;
+}
+.btn-view-orders {
+    background: #6c757d;
+    padding: 0.5rem 1rem;
+}
+
+.btn-update:hover { background: #0056b3; }
+.btn-toggle:hover { background: #e0a800; }
+.btn-delete:hover { background: #c82333; }
+.btn-adjust-balance:hover { background: #218838; }
+.btn-view-orders:hover { background: #5a6268; }
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+}
+
+.balance-form {
+    margin: 1rem 0;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-confirm, .btn-cancel, .btn-close {
+    flex: 1;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+}
+
+.btn-confirm { background: #28a745; color: white; }
+.btn-cancel { background: #dc3545; color: white; }
+.btn-close { background: #6c757d; color: white; }
+
+@media (max-width: 768px) {
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .actions {
+        flex-wrap: wrap;
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        padding: 1rem;
+    }
+}
+</style>
+
+<script>
+let currentUserId = null;
+
+function filterUsers() {
+    const status = document.getElementById('statusFilter').value;
+    const role = document.getElementById('roleFilter').value;
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    
+    document.querySelectorAll('tbody tr').forEach(row => {
+        const isActive = !row.classList.contains('inactive');
+        const userRole = row.dataset.role;
+        const email = row.cells[0].textContent.toLowerCase();
+        
+        const matchesStatus = status === 'all' || 
+            (status === 'active' && isActive) || 
+            (status === 'inactive' && !isActive);
+        
+        const matchesRole = role === 'all' || userRole === role;
+        const matchesSearch = email.includes(search);
+        
+        row.style.display = matchesStatus && matchesRole && matchesSearch ? '' : 'none';
+    });
+}
+
+function updateRole(uid) {
+    const select = document.querySelector(`select[data-uid="${uid}"]`);
+    const newRole = select.value;
+
+    if (!confirm(`Bạn có chắc muốn thay đổi quyền của user này thành ${newRole}?`)) return;
+
+    fetch(`/admin/update_role/${uid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `role=${newRole}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(error => showToast(error.message, 'error'));
+}
+
+function toggleUser(uid) {
+    if (!confirm('Bạn có chắc muốn thay đổi trạng thái tài khoản này?')) return;
+
+    fetch(`/admin/toggle_user/${uid}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(error => showToast(error.message, 'error'));
+}
+
+function deleteUser(uid) {
+    if (!confirm('Bạn có chắc muốn xóa tài khoản này? Hành động này không thể hoàn tác!')) return;
+
+    fetch(`/admin/delete_user/${uid}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(error => showToast(error.message, 'error'));
+}
+
+function showBalanceModal(uid) {
+    currentUserId = uid;
+    document.getElementById('balanceModal').style.display = 'flex';
+    document.getElementById('balanceAmount').value = '';
+    document.getElementById('balanceNote').value = '';
+}
+
+function closeBalanceModal() {
+    document.getElementById('balanceModal').style.display = 'none';
+    currentUserId = null;
+}
+
+function adjustBalance() {
+    const amount = document.getElementById('balanceAmount').value;
+    const type = document.getElementById('balanceType').value;
+    const note = document.getElementById('balanceNote').value;
+
+    if (!amount || amount < 0) {
+        showToast('Vui lòng nhập số tiền hợp lệ', 'error');
+        return;
+    }
+
+    fetch(`/admin/adjust_balance/${currentUserId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, type, note })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        showToast(data.message, 'success');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(error => showToast(error.message, 'error'));
+}
+
+function showOrderHistory(uid) {
+    fetch(`/admin/user_orders/${uid}`)
+    .then(response => response.json())
+    .then(data => {
+        const content = document.getElementById('orderHistoryContent');
+        if (data.orders && data.orders.length > 0) {
+            content.innerHTML = data.orders.map(order => `
+                <div class="order-item">
+                    <div class="order-header">
+                        <span class="order-id">Đơn #${order._id}</span>
+                        <span class="order-date">${new Date(order.order_time).toLocaleString('vi-VN')}</span>
+                        <span class="order-status status-${order.status}">${order.status}</span>
+                    </div>
+                    <div class="order-details">
+                        <p><strong>Món:</strong> ${order.item_name} x${order.quantity}</p>
+                        <p><strong>Tổng tiền:</strong> ${order.total_amount.toLocaleString()}đ</p>
+                        <p><strong>Thời gian nhận:</strong> ${new Date(order.pickup_time).toLocaleString('vi-VN')}</p>
+                        ${order.delivery_type === 'delivery' ? `
+                        <div class="delivery-info">
+                            <p><strong>Địa chỉ:</strong> ${order.delivery_address.street}, ${order.delivery_address.district}</p>
+                            <p><strong>SĐT:</strong> ${order.delivery_address.phone}</p>
+                            <p><strong>Phí ship:</strong> ${order.delivery_fee.toLocaleString()}đ</p>
+                        </div>
+                        ` : '<p><strong>Hình thức:</strong> Tự đến lấy</p>'}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            content.innerHTML = '<p class="no-orders">Chưa có đơn hàng nào</p>';
+        }
+        document.getElementById('orderHistoryModal').style.display = 'flex';
+    })
+    .catch(error => showToast('Không thể tải lịch sử đơn hàng', 'error'));
+}
+
+function closeOrderHistoryModal() {
+    document.getElementById('orderHistoryModal').style.display = 'none';
+}
+
+function showToast(message, type) {
+    // Add your toast notification implementation here
+    alert(message);
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    const modals = document.getElementsByClassName('modal');
+    for (const modal of modals) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+}
+</script>
+{% endblock %}

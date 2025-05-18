@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block title %}Menu{% endblock %}
+
+{% block content %}
+<div class="menu-container">
+    {% for item in menu %}
+    <div class="menu-item" data-id="{{ item._id }}">
+        {% if session.uid and user and user.role == 'admin' %}
+        <div class="admin-actions">
+            <button onclick="deleteItem('{{ item._id }}')" class="btn-delete" title="Xóa món">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button onclick="editItem('{{ item._id }}')" class="btn-edit" title="Sửa món">
+                <i class="fas fa-edit"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <img src="{{ url_for('static', filename=item.hinhAnh) }}" alt="{{ item.ten }}">
+        <div class="item-info">
+            <h3>{{ item.ten }}</h3>
+            <p class="description">{{ item.moTa }}</p>
+            <p class="price">{{ "{:,.0f}".format(item.gia) }}đ</p>
+        </div>
+        <div class="order-form">
+            <div class="quantity-control">
+                <button onclick="decreaseQuantity('{{ item._id }}')" class="qty-btn">-</button>
+                <input type="number" id="qty-{{ item._id }}" value="1" min="1" max="10" class="qty-input" readonly>
+                <button onclick="increaseQuantity('{{ item._id }}')" class="qty-btn">+</button>
+            </div>
+
+            <div class="delivery-type">
+                <select id="delivery-{{ item._id }}" onchange="toggleDeliveryForm('{{ item._id }}', {{ item.gia }})">
+                    <option value="pickup">Tự đến lấy</option>
+                    <option value="delivery">Giao hàng tận nơi</option>
+                </select>
+            </div>
+
+            <div id="delivery-form-{{ item._id }}" class="delivery-form" style="display: none;">
+                <input type="text" id="street-{{ item._id }}" placeholder="Số nhà, tên đường" class="delivery-input">
+                <select id="district-{{ item._id }}" onchange="updateDeliveryFee('{{ item._id }}', {{ item.gia }})" class="delivery-input">
+                    <option value="">Chọn quận/huyện</option>
+                    <option value="Quận 1">Quận 1</option>
+                    <option value="Quận 2">Quận 2</option>
+                    <option value="Quận 3">Quận 3</option>
+                    <option value="Quận 4">Quận 4</option>
+                    <option value="Quận 5">Quận 5</option>
+                </select>
+                <input type="tel" id="phone-{{ item._id }}" placeholder="Số điện thoại" class="delivery-input">
+                <textarea id="note-{{ item._id }}" placeholder="Ghi chú giao hàng" class="delivery-input"></textarea>
+                <div class="delivery-fee">
+                    Phí giao hàng: <span id="fee-{{ item._id }}">0</span>đ
+                </div>
+            </div>
+
+            <input type="datetime-local" id="pickup-{{ item._id }}" class="pickup-time" 
+                   min="{{ now }}" 
+                   value="{{ now }}">
+            <button onclick="placeOrder('{{ item._id }}', '{{ item.ten }}', {{ item.gia }})" class="order-btn">
+                <i class="fas fa-shopping-cart"></i> Đặt món
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="orderModal" class="modal">
+    <div class="modal-content">
+        <h3>Xác nhận đơn hàng</h3>
+        <div id="orderDetails"></div>
+        <div class="user-balance">
+            Số dư: <span>{{ "{:,.0f}".format(user.balance|default(0)) }}đ</span>
+        </div>
+        <div class="modal-actions">
+            <button onclick="confirmOrder()" class="btn-confirm">
+                <i class="fas fa-check"></i> Xác nhận
+            </button>
+            <button onclick="closeModal()" class="btn-cancel">
+                <i class="fas fa-times"></i> Hủy
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="toastMessage" class="toast"></div>
+
+<style>
+.menu-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 2rem;
+    padding: 2rem;
+}
+
+.menu-item {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.menu-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.menu-item.deleting {
+    animation: fadeOut 0.5s ease forwards;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.8); }
+}
+
+.admin-actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-delete, .btn-edit {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(-10px);
+    color: white;
+}
+
+.btn-delete {
+    background: #e74c3c;
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.btn-edit {
+    background: #3498db;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.menu-item:hover .btn-delete,
+.menu-item:hover .btn-edit {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.btn-delete:hover {
+    background: #c0392b;
+    transform: scale(1.1) !important;
+}
+
+.btn-edit:hover {
+    background: #2980b9;
+    transform: scale(1.1) !important;
+}
+
+.menu-item img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+}
+
+.item-info {
+    padding: 1.5rem;
+}
+
+.item-info h3 {
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+    color: var(--dark);
+}
+
+.description {
+    color: #666;
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+.price {
+    color: #e53935;
+    font-weight: 600;
+    font-size: 1.4rem;
+}
+
+.order-form {
+    padding: 1.5rem;
+    border-top: 1px solid #eee;
+}
+
+.quantity-control {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+    justify-content: center;
+}
+
+.qty-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: #f0f0f0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.qty-btn:hover {
+    background: #e0e0e0;
+    transform: translateY(-2px);
+}
+
+.qty-input {
+    width: 60px;
+    text-align: center;
+    padding: 0.5rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.delivery-type select,
+.delivery-input,
+.pickup-time {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.delivery-type select:focus,
+.delivery-input:focus,
+.pickup-time:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.delivery-form {
+    margin: 1rem 0;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+textarea.delivery-input {
+    height: 80px;
+    resize: vertical;
+}
+
+.delivery-fee {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    background: #e8f5e9;
+    border-radius: 8px;
+    text-align: center;
+    color: #2e7d32;
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+.order-btn {
+    width: 100%;
+    padding: 1rem;
+    background: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.order-btn:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.modal-content h3 {
+    font-size: 1.5rem;
+    color: var(--dark);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.delivery-details {
+    margin: 1rem 0;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border-left: 4px solid #4caf50;
+}
+
+.user-balance {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.btn-confirm, .btn-cancel {
+    flex: 1;
+    padding: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-confirm {
+    background: #4caf50;
+    color: white;
+}
+
+.btn-confirm:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+}
+
+.btn-confirm:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-cancel {
+    background: #f44336;
+    color: white;
+}
+
+.btn-cancel:hover {
+    background: #e53935;
+    transform: translateY(-2px);
+}
+
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(-50%, -20px);
+}
+
+.toast-success {
+    background: #4caf50;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+}
+
+.toast-error {
+    background: #f44336;
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.2);
+}
+
+@media (max-width: 768px) {
+    .menu-container {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        width: calc(100% - 2rem);
+        padding: 1.5rem;
+    }
+
+    .admin-actions {
+        opacity: 1;
+        transform: none;
+    }
+}
+</style>
+
+<script>
+let currentOrder = null;
+const deliveryFees = {
+    'Quận 1': 15000,
+    'Quận 2': 20000,
+    'Quận 3': 15000,
+    'Quận 4': 20000,
+    'Quận 5': 15000
+};
+
+function deleteItem(itemId) {
+    if (!confirm('Bạn có chắc muốn xóa món này? Hành động này không thể hoàn tác!')) {
+        return;
+    }
+
+    const menuItem = document.querySelector(`.menu-item[data-id="${itemId}"]`);
+    menuItem.classList.add('deleting');
+
+    fetch(`/admin/delete-item/${itemId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        
+        setTimeout(() => {
+            menuItem.remove();
+            showToast('Xóa món thành công', 'success');
+        }, 500);
+    })
+    .catch(error => {
+        menuItem.classList.remove('deleting');
+        showToast(error.message, 'error');
+    });
+}
+
+function editItem(itemId) {
+    window.location.href = `/admin/edit-item/${itemId}`;
+}
+
+function decreaseQuantity(itemId) {
+    const input = document.getElementById(`qty-${itemId}`);
+    const newValue = Math.max(1, parseInt(input.value) - 1);
+    input.value = newValue;
+    updateTotal(itemId);
+}
+
+function increaseQuantity(itemId) {
+    const input = document.getElementById(`qty-${itemId}`);
+    const newValue = Math.min(10, parseInt(input.value) + 1);
+    input.value = newValue;
+    updateTotal(itemId);
+}
+
+function toggleDeliveryForm(itemId, basePrice) {
+    const deliveryType = document.getElementById(`delivery-${itemId}`).value;
+    const deliveryForm = document.getElementById(`delivery-form-${itemId}`);
+    deliveryForm.style.display = deliveryType === 'delivery' ? 'block' : 'none';
+    updateTotal(itemId, basePrice);
+}
+
+function updateDeliveryFee(itemId, basePrice) {
+    const district = document.getElementById(`district-${itemId}`).value;
+    const fee = deliveryFees[district] || 25000;
+    document.getElementById(`fee-${itemId}`).textContent = fee.toLocaleString();
+    updateTotal(itemId, basePrice);
+}
+
+function updateTotal(itemId, basePrice) {
+    const quantity = parseInt(document.getElementById(`qty-${itemId}`).value);
+    const deliveryType = document.getElementById(`delivery-${itemId}`).value;
+    let total = basePrice * quantity;
+
+    if (deliveryType === 'delivery') {
+        const district = document.getElementById(`district-${itemId}`).value;
+        if (district) {
+            const fee = deliveryFees[district] || 25000;
+            total += fee;
+        }
+    }
+
+    return total;
+}
+
+function validatePickupTime(pickupTime) {
+    const selectedTime = new Date(pickupTime);
+    const now = new Date();
+    const minTime = new Date(now.getTime() + 30 * 60000);
+    return selectedTime > minTime;
+}
+
+function validateDeliveryForm(itemId) {
+    const deliveryType = document.getElementById(`delivery-${itemId}`).value;
+    if (deliveryType === 'delivery') {
+        const street = document.getElementById(`street-${itemId}`).value.trim();
+        const district = document.getElementById(`district-${itemId}`).value;
+        const phone = document.getElementById(`phone-${itemId}`).value.trim();
+
+        if (!street) {
+            showToast('Vui lòng nhập địa chỉ', 'error');
+            return false;
+        }
+        if (!district) {
+            showToast('Vui lòng chọn quận/huyện', 'error');
+            return false;
+        }
+        if (!phone || !/^\d{10}$/.test(phone)) {
+            showToast('Vui lòng nhập số điện thoại hợp lệ (10 số)', 'error');
+            return false;
+        }
+    }
+    return true;
+}
+
+function placeOrder(itemId, itemName, price) {
+    const quantity = document.getElementById(`qty-${itemId}`).value;
+    const pickupTime = document.getElementById(`pickup-${itemId}`).value;
+    const deliveryType = document.getElementById(`delivery-${itemId}`).value;
+
+    if (!pickupTime) {
+        showToast('Vui lòng chọn thời gian nhận hàng', 'error');
+        return;
+    }
+
+    if (!validatePickupTime(pickupTime)) {
+        showToast('Thời gian nhận hàng phải sau thời điểm hiện tại ít nhất 30 phút', 'error');
+        return;
+    }
+
+    if (!validateDeliveryForm(itemId)) return;
+
+    const total = updateTotal(itemId, price);
+    currentOrder = {
+        itemId: itemId,
+        itemName: itemName,
+        quantity: parseInt(quantity),
+        pickupTime: pickupTime,
+        price: price,
+        delivery_type: deliveryType,
+        total_amount: total
+    };
+
+    if (deliveryType === 'delivery') {
+        currentOrder.address = {
+            street: document.getElementById(`street-${itemId}`).value.trim(),
+            district: document.getElementById(`district-${itemId}`).value,
+            city: 'TP.HCM',
+            phone: document.getElementById(`phone-${itemId}`).value.trim()
+        };
+        currentOrder.delivery_note = document.getElementById(`note-${itemId}`).value.trim();
+    }
+
+    const modal = document.getElementById('orderModal');
+    const details = document.getElementById('orderDetails');
+    details.innerHTML = `
+        <p><strong>Món:</strong> ${itemName}</p>
+        <p><strong>Số lượng:</strong> ${quantity}</p>
+        <p><strong>Thời gian nhận:</strong> ${new Date(pickupTime).toLocaleString('vi-VN')}</p>
+        ${deliveryType === 'delivery' ? `
+        <div class="delivery-details">
+            <p><strong>Hình thức:</strong> Giao hàng tận nơi</p>
+            <p><strong>Địa chỉ:</strong> ${currentOrder.address.street}, ${currentOrder.address.district}</p>
+            <p><strong>SĐT:</strong> ${currentOrder.address.phone}</p>
+            <p><strong>Phí giao:</strong> ${(deliveryFees[currentOrder.address.district] || 25000).toLocaleString()}đ</p>
+            ${currentOrder.delivery_note ? `<p><strong>Ghi chú:</strong> ${currentOrder.delivery_note}</p>` : ''}
+        </div>
+        ` : '<p><strong>Hình thức:</strong> Tự đến lấy</p>'}
+        <p><strong>Tổng tiền:</strong> ${total.toLocaleString()}đ</p>
+    `;
+    modal.style.display = 'flex';
+}
+
+function confirmOrder() {
+    if (!currentOrder) return;
+
+    const confirmBtn = document.querySelector('.btn-confirm');
+    const originalText = confirmBtn.textContent;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+
+    fetch('/place-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentOrder)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        showToast('Đặt hàng thành công!', 'success');
+        setTimeout(() => {
+            closeModal();
+            location.reload();
+        }, 1500);
+    })
+    .catch(error => {
+        showToast(error.message, 'error');
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalText;
+    });
+}
+
+function closeModal() {
+    document.getElementById('orderModal').style.display = 'none';
+    currentOrder = null;
+}
+
+function showToast(message, type) {
+    const toast = document.getElementById('toastMessage');
+    const icon = type === 'success' ? 
+        '<i class="fas fa-check-circle"></i>' : 
+        '<i class="fas fa-exclamation-circle"></i>';
+    toast.innerHTML = `${icon} ${message}`;
+    toast.className = `toast toast-${type} show`;
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 3000);
+}
+
+document.querySelectorAll('.pickup-time').forEach(input => {
+    input.addEventListener('change', (e) => {
+        if (!validatePickupTime(e.target.value)) {
+            showToast('Thời gian nhận hàng phải sau thời điểm hiện tại ít nhất 30 phút', 'error');
+            e.target.value = e.target.min;
+        }
+    });
+});
+</script>
+{% endblock %}

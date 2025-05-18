@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Sửa món{% endblock %}
+
+{% block content %}
+<div class="edit-container">
+    <form method="POST" enctype="multipart/form-data" class="edit-form">
+        <h2>Sửa món</h2>
+        
+        <div class="form-group">
+            <label>Tên món:</label>
+            <input type="text" name="ten" value="{{ item.ten }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>Giá:</label>
+            <input type="number" name="gia" value="{{ item.gia }}" required min="0">
+        </div>
+
+        <div class="form-group">
+            <label>Mô tả:</label>
+            <textarea name="moTa" required>{{ item.moTa }}</textarea>
+        </div>
+
+        <div class="form-preview">
+            <img src="{{ url_for('static', filename=item.hinhAnh) }}" alt="Preview" id="imagePreview">
+        </div>
+
+        <div class="form-group">
+            <label>Hình ảnh mới (không bắt buộc):</label>
+            <input type="file" name="hinhAnh" accept="image/*" onchange="previewImage(this)">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-save">
+                <i class="fas fa-save"></i> Lưu thay đổi
+            </button>
+            <a href="{{ url_for('menu') }}" class="btn-cancel">
+                <i class="fas fa-times"></i> Hủy
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+.edit-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+.edit-form {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.edit-form h2 {
+    text-align: center;
+    color: var(--dark);
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--dark);
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    border: 2px solid #eee;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group textarea {
+    height: 100px;
+    resize: vertical;
+}
+
+.form-preview {
+    margin: 1rem 0;
+    text-align: center;
+}
+
+.form-preview img {
+    max-width: 100%;
+    max-height: 300px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn-save, .btn-cancel {
+    flex: 1;
+    padding: 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.btn-save {
+    background: #4caf50;
+    color: white;
+}
+
+.btn-save:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+}
+
+.btn-cancel {
+    background: #f44336;
+    color: white;
+}
+
+.btn-cancel:hover {
+    background: #e53935;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.2);
+}
+
+@media (max-width: 768px) {
+    .edit-form {
+        padding: 1.5rem;
+    }
+}
+</style>
+
+<script>
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('imagePreview').src = e.target.result;
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+</script>
+{% endblock %}

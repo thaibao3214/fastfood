@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Lịch sử giao dịch{% endblock %}
+
+{% block content %}
+<div class="transactions-container">
+    <h2>Lịch sử giao dịch</h2>
+    
+    <div class="balance-card">
+        <div class="balance-info">
+            <span class="balance-label">Số dư hiện tại:</span>
+            <span class="balance-amount">{{ "{:,.0f}".format(user.balance|default(0)) }}đ</span>
+        </div>
+    </div>
+
+    <div class="transactions-list">
+        {% if transactions %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Loại giao dịch</th>
+                        <th>Số tiền</th>
+                        <th>Trạng thái</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trans in transactions %}
+                    <tr>
+                        <td>{{ trans.timestamp.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            {% if trans.type == 'deposit' %}
+                                <span class="badge deposit">Nạp tiền</span>
+                            {% elif trans.type == 'payment' %}
+                                <span class="badge payment">Thanh toán</span>
+                            {% endif %}
+                        </td>
+                        <td class="{{ 'amount-plus' if trans.type == 'deposit' else 'amount-minus' }}">
+                            {{ "{:+,.0f}".format(trans.amount) if trans.type == 'deposit' else "{:,.0f}".format(trans.amount) }}đ
+                        </td>
+                        <td>
+                            <span class="badge {{ 'success' if trans.status == 'success' else 'failed' }}">
+                                {{ 'Thành công' if trans.status == 'success' else 'Thất bại' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="no-transactions">
+                Chưa có giao dịch nào
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.transactions-container {
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 1rem;
+}
+
+.balance-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.balance-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+
+.balance-label {
+    font-size: 1.2rem;
+    color: #666;
+}
+
+.balance-amount {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.transactions-list {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 2rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+th {
+    font-weight: 600;
+    color: #666;
+}
+
+.badge {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.deposit {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.payment {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.success {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.failed {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.amount-plus {
+    color: #2e7d32;
+}
+
+.amount-minus {
+    color: #c62828;
+}
+
+.no-transactions {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}
+</style>
+{% endblock %}

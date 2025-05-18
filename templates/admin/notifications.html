@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+
+{% block title %}Thông báo đơn hàng{% endblock %}
+
+{% block content %}
+<div class="notifications-container">
+    <h2 class="page-title">Thông báo đơn hàng</h2>
+    
+    <div class="notifications-list">
+        {% for notification in notifications %}
+        <div class="notification-item {% if not notification.is_read %}unread{% endif %}" 
+             data-id="{{ notification._id }}">
+            <div class="notification-content">
+                <div class="notification-message">{{ notification.message }}</div>
+                <div class="notification-time">
+                    {{ notification.created_at.strftime('%H:%M %d/%m/%Y') }}
+                </div>
+                <div class="notification-details">
+                    <p><strong>Thời gian nhận:</strong> {{ notification.details.pickup_time.strftime('%H:%M %d/%m/%Y') }}</p>
+                    <p><strong>Tổng tiền:</strong> {{ "{:,.0f}".format(notification.details.total_amount) }}đ</p>
+                    
+                    <div class="delivery-info">
+                        <p><strong>Hình thức nhận hàng:</strong> 
+                            {% if notification.details.delivery_type == 'delivery' %}
+                                Giao hàng tận nơi
+                            {% else %}
+                                Tự đến lấy
+                            {% endif %}
+                        </p>
+                        
+                        {% if notification.details.delivery_type == 'delivery' %}
+                        <div class="delivery-details">
+                            <p><strong>Địa chỉ:</strong> {{ notification.details.delivery_address.street }}, 
+                               {{ notification.details.delivery_address.district }}</p>
+                            <p><strong>Số điện thoại:</strong> {{ notification.details.delivery_address.phone }}</p>
+                            <p><strong>Phí giao hàng:</strong> {{ "{:,.0f}".format(notification.details.delivery_fee) }}đ</p>
+                            {% if notification.details.delivery_note %}
+                            <p><strong>Ghi chú giao hàng:</strong> {{ notification.details.delivery_note }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if notification.details.note %}
+                    <p><strong>Ghi chú chung:</strong> {{ notification.details.note }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="order-status">
+                    <p><strong>Trạng thái:</strong> 
+                        <span class="status-badge status-{{ notification.details.status }}">
+                            {% if notification.details.status == 'pending' %}
+                                Chờ xử lý
+                            {% elif notification.details.status == 'preparing' %}
+                                Đang chuẩn bị
+                            {% elif notification.details.status == 'delivering' %}
+                                Đang giao
+                            {% elif notification.details.status == 'completed' %}
+                                Đã hoàn thành
+                            {% else %}
+                                {{ notification.details.status }}
+                            {% endif %}
+                        </span>
+                    </p>
+                    {% if notification.details.status == 'pending' %}
+                    <div class="status-actions">
+                        <button onclick="updateOrderStatus('{{ notification._id }}', 'preparing')" 
+                                class="status-btn preparing-btn">
+                            Bắt đầu chuẩn bị
+                        </button>
+                        {% if notification.details.delivery_type == 'delivery' %}
+                        <button onclick="updateOrderStatus('{{ notification._id }}', 'delivering')" 
+                                class="status-btn delivering-btn">
+                            Bắt đầu giao hàng
+                        </button>
+                        {% endif %}
+                        <button onclick="updateOrderStatus('{{ notification._id }}', 'completed')" 
+                                class="status-btn complete-btn">
+                            Hoàn thành
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% if not notification.is_read %}
+            <button onclick="markAsRead('{{ notification._id }}')" class="mark-read-btn">
+                Đánh dấu đã đọc
+            </button>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        {% if not notifications %}
+        <div class="empty-state">
+            <p>Chưa có thông báo nào</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.notifications-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.page-title {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #333;
+    font-size: 1.8rem;
+}
+
+.notifications-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.notification-item {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.notification-item:hover {
+    transform: translateY(-2px);
+}
+
+.notification-item.unread {
+    border-left: 4px solid #007bff;
+    background: #f8f9fa;
+}
+
+.notification-message {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.notification-time {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.notification-details {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.delivery-info {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fff;
+    border-radius: 4px;
+    border-left: 4px solid #28a745;
+}
+
+.delivery-details {
+    margin-top: 0.5rem;
+    padding: 0.8rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.order-status {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-pending {
+    background: #ffeeba;
+    color: #856404;
+}
+
+.status-preparing {
+    background: #b8daff;
+    color: #004085;
+}
+
+.status-delivering {
+    background: #c3e6cb;
+    color: #155724;
+}
+
+.status-completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.status-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    flex: 1;
+    min-width: 120px;
+}
+
+.preparing-btn {
+    background: #007bff;
+    color: white;
+}
+
+.preparing-btn:hover {
+    background: #0056b3;
+}
+
+.delivering-btn {
+    background: #28a745;
+    color: white;
+}
+
+.delivering-btn:hover {
+    background: #218838;
+}
+
+.complete-btn {
+    background: #17a2b8;
+    color: white;
+}
+
+.complete-btn:hover {
+    background: #138496;
+}
+
+.mark-read-btn {
+    margin-top: 1rem;
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+}
+
+.mark-read-btn:hover {
+    background: #5a6268;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+    .notifications-container {
+        padding: 0.5rem;
+    }
+    
+    .notification-item {
+        padding: 1rem;
+    }
+    
+    .notification-message {
+        font-size: 1rem;
+    }
+    
+    .status-actions {
+        flex-direction: column;
+    }
+    
+    .status-btn {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+function markAsRead(notificationId) {
+    fetch(`/admin/notifications/mark-read/${notificationId}`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            const notification = document.querySelector(`[data-id="${notificationId}"]`);
+            notification.classList.remove('unread');
+            notification.querySelector('.mark-read-btn').remove();
+            updateNotificationCount();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Có lỗi xảy ra', 'error');
+    });
+}
+
+function updateOrderStatus(notificationId, status) {
+    const confirmMsg = {
+        'preparing': 'bắt đầu chuẩn bị',
+        'delivering': 'bắt đầu giao',
+        'completed': 'hoàn thành'
+    };
+
+    if (!confirm(`Xác nhận ${confirmMsg[status]} đơn hàng?`)) {
+        return;
+    }
+
+    fetch(`/admin/orders/update-status/${notificationId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: status })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.error) {
+            location.reload();
+        } else {
+            showToast(data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
+    });
+}
+
+function showToast(message, type) {
+    // Implement your toast notification here
+    alert(message);
+}
+
+function updateNotificationCount() {
+    // Update notification badge count if you have one
+    const unreadCount = document.querySelectorAll('.notification-item.unread').length;
+    // Update your notification badge here
+}
+</script>
+{% endblock %}
