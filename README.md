@@ -30,7 +30,8 @@ quản lý user, khóa/mở khóa tài khoản, điều chỉnh số dư, xem l�
 - PyMongo, python-dotenv, Flask-SocketIO, Pillow, v.v.
 - HTML/CSS/JS (Frontend, Jinja2 template)
 - Visual Studio Code 
-
+## Link video cùng với code,slide:
+https://drive.google.com/drive/folders/1xBa3ApVUchXJrUMmNQ1esN2TWp0o7hsk
 
 ## Cài đặt và chạy ứng dụng
 Mở terminal và Cài đặt các thư viện cần thiết:
